@@ -39,8 +39,8 @@ class GenerationAPI:
         if cookies:
             self.session.cookies.update(cookies)
         
-        self.logger = logging.getLogger(__name__)
-        
+            self.logger = logging.getLogger(__name__)
+            self.logger.setLevel(logging.INFO)
         # Initialize HTML scraper for extracting video URLs from pages
         self.html_scraper = MetaAIHTMLScraper(self.session)
     
@@ -117,7 +117,7 @@ class GenerationAPI:
         
         Args:
             prompt: Generation prompt
-            operation: Operation type (TEXT_TO_IMAGE or TEXT_TO_VIDEO)
+            operation: Operation type (TEXT_TO_IMAGE or TEXT_TO_VIDEO or IMAGE_TO_VIDEO or IMAGE_TO_IMAGE)
             content_prefix: Prefix for content ("Imagine" or "Animate")
             **kwargs: Additional parameters
             
@@ -133,10 +133,35 @@ class GenerationAPI:
         content = f"{content_prefix} {prompt}".strip() if content_prefix else prompt
 
         # Handle uploaded media attachments
-        attachments_v2 = []
+
+        # attachments_v2 = [str(mid) for mid in media_ids]
+
+        # attachments_v2 = []
         media_ids = kwargs.get('media_ids')
-        if media_ids:
-            attachments_v2 = [str(mid) for mid in media_ids]
+        if media_ids and operation == "IMAGE_TO_VIDEO":
+            operation_key = "imageToVideoParams"
+            operation_values = {
+                        "sourceMediaEntId": str(media_ids[0]),
+                        "sourceMediaUrl": "",
+                        "prompt": prompt,
+                        "numMedia": 1
+                    }
+        elif media_ids and operation == "IMAGE_TO_IMAGE":
+            operation_key = "imageToImageParams"
+            operation_values = {
+                        "sourceMediaEntId": str(media_ids[0]),
+                        "sourceMediaUrl": "",
+                        "instruction": prompt,
+                        "imageSource": "USER_UPLOADED",
+                        "imageUploadType": "GENAI_UPLOADED_FILE",
+                        "mediaType": "UPLOADED_IMAGE",
+                        "numMedia": 4
+                    }
+        else:
+            operation_key = "textToImageParams"
+            operation_values = {
+                    "prompt": prompt
+                }
 
         variables = {
             "conversationId": conversation_id,
@@ -149,15 +174,13 @@ class GenerationAPI:
             "mode": "create",
             "rewriteOptions": None,
             "attachments": None,
-            "attachmentsV2": attachments_v2,
+            # "attachmentsV2": attachments_v2,
             "mentions": None,
             "clippyIp": None,
             "isNewConversation": kwargs.get('is_new_conversation', True),
             "imagineOperationRequest": {
                 "operation": operation,
-                "textToImageParams": {
-                    "prompt": prompt
-                }
+                operation_key: operation_values
             },
             "qplJoinId": None,
             "clientTimezone": kwargs.get('timezone', "UTC"),
@@ -200,17 +223,19 @@ class GenerationAPI:
         """
         self.logger.info(f"Generating image with prompt: {prompt}")
         
+        operation = kwargs.pop("operation", "TEXT_TO_IMAGE")
+        
         variables = self._build_base_variables(
             prompt=prompt,
-            operation="TEXT_TO_IMAGE",
+            operation=operation,
             content_prefix="",
             **kwargs
         )
         
-        # Add image-specific parameters
-        variables["imagineOperationRequest"]["textToImageParams"]["orientation"] = self._normalize_orientation(orientation)
-        if num_images > 1:
-            self.logger.warning("num_images > 1 is not supported by this endpoint; generating a single image")
+        # # Add image-specific parameters
+        # variables["imagineOperationRequest"]["textToImageParams"]["orientation"] = self._normalize_orientation(orientation)
+        # if num_images > 1:
+        #     self.logger.warning("num_images > 1 is not supported by this endpoint; generating a single image")
         
         payload = {
             "doc_id": self.IMAGE_DOC_ID,
@@ -324,11 +349,17 @@ class GenerationAPI:
             Response from API with video data and URLs (if fetch_urls=True)
         """
         self.logger.info(f"Generating video with prompt: {prompt}")
+
+        operation = kwargs.pop("operation", "TEXT_TO_VIDEO")
+        if operation == "TEXT_TO_VIDEO":
+            content_prefix = "Animate"
+        else:
+            content_prefix = ""
         
         variables = self._build_base_variables(
             prompt=prompt,
-            operation="TEXT_TO_VIDEO",
-            content_prefix="Animate",
+            operation=operation,
+            content_prefix=content_prefix,
             **kwargs
         )
         
@@ -378,11 +409,13 @@ class GenerationAPI:
         
         response.raise_for_status()
         result = self._parse_response(response)
-        
+        print(result.get('video_objects'))
+
         # If fetch_urls is enabled and we have video IDs, fetch video URLs
         if fetch_urls and result.get('video_objects'):
             # Extract video IDs from video_objects
             video_ids = [v['id'] for v in result['video_objects'] if 'id' in v]
+            print(video_ids)
             conversation_id = result.get('conversation_id')
             
             if video_ids:
@@ -570,6 +603,7 @@ class GenerationAPI:
                                         result['image_objects'].append(img)
                             
                             # Extract videos (URLs and full objects)
+                            # print(msg)
                             if 'videos' in msg and msg['videos']:
                                 for vid in msg['videos']:
                                     vid_url = vid.get('url')
@@ -581,7 +615,8 @@ class GenerationAPI:
                                     
                                     # Store full video object (includes ID, sourceMedia, etc.)
                                     if vid not in result['video_objects']:
-                                        result['video_objects'].append(vid)
+                                        if "pending" not in vid.get("id"):
+                                            result['video_objects'].append(vid)
                             
                             # Extract message text
                             if 'message' in msg:
@@ -823,7 +858,7 @@ class GenerationAPI:
                             'orientation': create_route_media.get('orientation'),
                             'fallbackUrl': create_route_media.get('fallbackUrl'),
                             'downloadableFileName': create_route_media.get('downloadableFileName'),
-                            'source_image_url': create_route_media.get('sourceMedia', {}).get('url')
+                            'source_image_url': (create_route_media.get('sourceMedia') or {}).get('url')
                         })
                         seen_ids.add(route_id)
                 media_feed = data.get('data', {}).get('mediaLibraryFeed', {})
@@ -849,7 +884,7 @@ class GenerationAPI:
                                 'orientation': video.get('orientation'),
                                 'fallbackUrl': video.get('fallbackUrl'),
                                 'downloadableFileName': video.get('downloadableFileName'),
-                                'source_image_url': video.get('sourceMedia', {}).get('url')
+                                'source_image_url': (video.get('sourceMedia') or {}).get('url')
                             })
                             seen_ids.add(video_id)
                 
@@ -870,7 +905,7 @@ class GenerationAPI:
                     time.sleep(wait_seconds)
                 
             except Exception as e:
-                self.logger.warning(f"Attempt {attempt}/{max_attempts} failed: {e}")
+                self.logger.warning(f"Attempt {attempt}/{max_attempts} failed: {e}", exc_info=True)
                 if attempt < max_attempts:
                     time.sleep(wait_seconds)
         
