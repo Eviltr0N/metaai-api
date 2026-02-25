@@ -160,7 +160,8 @@ class GenerationAPI:
         else:
             operation_key = "textToImageParams"
             operation_values = {
-                    "prompt": prompt
+                    "prompt": prompt,
+                    "orientation":self._normalize_orientation(kwargs.get("orientation"))
                 }
 
         variables = {
@@ -229,14 +230,10 @@ class GenerationAPI:
             prompt=prompt,
             operation=operation,
             content_prefix="",
+            orientation = orientation,
             **kwargs
         )
-        
-        # # Add image-specific parameters
-        # variables["imagineOperationRequest"]["textToImageParams"]["orientation"] = self._normalize_orientation(orientation)
-        # if num_images > 1:
-        #     self.logger.warning("num_images > 1 is not supported by this endpoint; generating a single image")
-        
+            
         payload = {
             "doc_id": self.IMAGE_DOC_ID,
             "variables": variables
