@@ -20,7 +20,7 @@ class GenerationAPI:
     """
     
     ENDPOINT = "https://www.meta.ai/api/graphql"
-    DOC_ID = "83c79c30d655e0ae6f20af0e129101e2"  # Updated from curl.json - TEXT_TO_IMAGE and TEXT_TO_VIDEO
+    DOC_ID = "d5fffbedf3822eddc3ea62236602ac97"  # Updated from curl.json - TEXT_TO_IMAGE and TEXT_TO_VIDEO
     IMAGE_DOC_ID = "9d1cbdc2209964994658a3eff662a0eb"  # Working fast doc_id from fast-image.py (Feb 2026)
     IMAGE_DOC_ID_ALT = "904075722675ba2c1a7b333d4c525a1b"  # Alternate image doc_id from network captures (fallback)
     FETCH_CONVERSATION_DOC_ID = "e7f802582dbfed8e181b012e010993eb"  # Fetch conversation with populated video URLs
@@ -171,7 +171,7 @@ class GenerationAPI:
             "assistantMessageId": assistant_message_id,
             "userUniqueMessageId": str(kwargs.get('user_unique_message_id', self._generate_unique_id())),
             "turnId": turn_id,
-            "spaceId": None,
+            # "spaceId": None,
             "mode": "create",
             "rewriteOptions": None,
             "attachments": None,
@@ -189,15 +189,16 @@ class GenerationAPI:
             "clientLatitude": None,
             "clientLongitude": None,
             "devicePixelRatio": kwargs.get('device_pixel_ratio', 1.25),
-            "entryPoint": None,
+            "entryPoint": "KADABRA__UNKNOWN",
             "promptSessionId": prompt_session_id,
             "promptType": None,
             "conversationStarterId": None,
             "userAgent": kwargs.get('user_agent', self._default_user_agent()),
-            "currentBranchPath": None,
+            "currentBranchPath": "0",
             "promptEditType": "new_message",
             "userLocale": kwargs.get('locale', "en-US"),
-            "userEventId": None
+            "userEventId": None,
+            "requestedToolCall": None
         }
         
         return variables
@@ -364,7 +365,6 @@ class GenerationAPI:
             "doc_id": self.DOC_ID,
             "variables": variables
         }
-        
         conversation_id = variables["conversationId"]
         headers = {
             "Accept": "text/event-stream",
